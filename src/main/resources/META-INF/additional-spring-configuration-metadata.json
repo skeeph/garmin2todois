@@ -1,0 +1,9 @@
+{
+  "properties": [
+    {
+      "name": "garmin_url",
+      "type": "java.lang.String",
+      "description": "URL for export Garmin ics calendar."
+    }
+  ]
+}
