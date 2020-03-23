@@ -56,7 +56,9 @@ public class GarminCalenderParser {
                 .filter(x -> x.getName().equals("VEVENT"))
                 .map(calendarComponent -> calendarComponent.getProperties().stream()
                         .collect(Collectors.toMap(Property::getName, Content::getValue)))
-                .map(this::parseEvent);
+                .map(this::parseEvent)
+                .filter(event -> !event.getSummary().equals("Rest"))
+                .filter(event -> !event.getSummary().contains("Cross"));
     }
 
     private Event parseEvent(Map<String, String> source) {
