@@ -48,4 +48,14 @@ public class TodoistTask {
         this.project = project;
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "TodoistTask{" +
+                "content='" + content + '\'' +
+                ", dueDate='" + dueDate + '\'' +
+                ", description='" + description + '\'' +
+                ", project=" + project +
+                '}';
+    }
 }

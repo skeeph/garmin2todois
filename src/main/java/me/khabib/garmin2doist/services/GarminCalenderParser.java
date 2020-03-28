@@ -6,6 +6,8 @@ import net.fortuna.ical4j.data.ParserException;
 import net.fortuna.ical4j.model.Calendar;
 import net.fortuna.ical4j.model.Content;
 import net.fortuna.ical4j.model.Property;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class GarminCalenderParser {
+    private static final Logger log = LoggerFactory.getLogger(GarminCalenderParser.class);
 
     private static DateTimeFormatter LOCAL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -43,6 +46,7 @@ public class GarminCalenderParser {
     }
 
     private Mono<Calendar> downloadIcs() {
+        log.debug("Загрузка календаря Garmin");
         return WebClient.create(garminUrl).get()
                 .retrieve()
                 .bodyToMono(byte[].class)
@@ -51,6 +55,7 @@ public class GarminCalenderParser {
     }
 
     public Flux<Event> getEvents() {
+        log.info("Получение событий календаря Garmin");
         return downloadIcs().
                 flatMapMany(x -> Flux.fromIterable(x.getComponents()))
                 .filter(x -> x.getName().equals("VEVENT"))
@@ -62,6 +67,7 @@ public class GarminCalenderParser {
     }
 
     private Event parseEvent(Map<String, String> source) {
+        log.trace("Парсинг события из garmin: {}", source);
         final LocalDate date = LocalDate.parse(source.get("DTSTART"), LOCAL_DATE_FORMAT);
         final LocalDateTime time = LocalDateTime.parse(source.get("DTSTAMP"), LOCAL_DATE_TIME_FORMAT);
         return new Event()
