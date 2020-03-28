@@ -2,8 +2,10 @@ package me.khabib.garmin2doist.entities;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@AllArgsConstructor
 public class TaskNote {
     Long itemId;
     String content;
@@ -13,17 +15,7 @@ public class TaskNote {
         return itemId;
     }
 
-    public TaskNote setItemId(Long itemId) {
-        this.itemId = itemId;
-        return this;
-    }
-
     public String getContent() {
         return content;
-    }
-
-    public TaskNote setContent(String content) {
-        this.content = content;
-        return this;
     }
 }

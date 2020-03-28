@@ -1,30 +1,35 @@
 package me.khabib.garmin2doist.services;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import me.khabib.garmin2doist.entities.Command;
 import me.khabib.garmin2doist.entities.Event;
-import me.khabib.garmin2doist.entities.SavedTask;
 import me.khabib.garmin2doist.entities.TaskNote;
 import me.khabib.garmin2doist.entities.TodoistTask;
+import me.khabib.garmin2doist.entities.todoist.Command;
+import me.khabib.garmin2doist.entities.todoist.Commands;
+import me.khabib.garmin2doist.entities.todoist.Item;
+import me.khabib.garmin2doist.entities.todoist.SavedTask;
+import me.khabib.garmin2doist.entities.todoist.SyncQuery;
+import me.khabib.garmin2doist.entities.todoist.SyncResponse;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import javax.annotation.PostConstruct;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TodoistService {
-    //TODO 23.03.2020 murtuzaaliev: 1. Не сохранять дубликаты
-    //TODO 23.03.2020 murtuzaaliev: 2. Сохранение заметок
+    //TODO 23.03.2020 murtuzaaliev: Сделать логгирование в приложении
 
     private static final String TASK_URL = "https://api.todoist.com/rest/v1/tasks";
     private static final String SYNC_URL = "https://api.todoist.com/sync/v8/sync";
     private final GarminCalenderParser garminCalenderParser;
-    ObjectMapper mapper = new ObjectMapper();
 
     @Value("${doist_oauth}")
     private String token;
@@ -48,7 +53,21 @@ public class TodoistService {
 
     @PostConstruct
     public void init() {
-        garminCalenderParser.getEvents().map(this::convert).subscribe(this::addTask);
+        getSavedTasks().subscribe(
+                tasks -> garminCalenderParser.getEvents()
+                        .filter(event -> !tasks.contains(event.getSummary()))
+                        .map(this::convert)
+                        .subscribe(this::addTask)
+        );
+    }
+
+    private Mono<Set<String>> getSavedTasks() {
+        SyncQuery query = new SyncQuery(token, Collections.singletonList("items"));
+
+        return getWebClient(SYNC_URL).body(BodyInserters.fromValue(query))
+                .exchange()
+                .flatMap(x -> x.bodyToMono(SyncResponse.class))
+                .map(x -> x.getItems().stream().map(Item::getContent).collect(Collectors.toSet()));
     }
 
     private void addTask(TodoistTask task) {
@@ -57,40 +76,32 @@ public class TodoistService {
                 .exchange()
                 .flatMap(x -> x.bodyToMono(SavedTask.class))
                 .subscribe(
-//                        savedTask -> addDescription(task, savedTask)
+                        savedTask -> addDescription(task, savedTask)
                 );
 
-    }
-
-    private SavedTask parseSaved(String content) {
-        try {
-            return mapper.readValue(content, SavedTask.class);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private WebClient.RequestBodySpec getWebClient(String apiUrl) {
         return WebClient.create(apiUrl).post()
                 .header("Content-Type", "application/json")
-                .header("X-Request-Id", UUID.randomUUID().toString())
+                .header("X-Request-Id", getRandomUUID())
                 .header("Authorization", "Bearer " + token);
     }
 
-    //TODO 23.03.2020 murtuzaaliev: Это нерабочая функция не сохраняет заметки
     private void addDescription(TodoistTask task, SavedTask savedTask) {
-        TaskNote taskNote = new TaskNote().setItemId(savedTask.getId()).setContent(task.getDescription());
-        Command command = new Command()
-                .setArgs(taskNote)
-                .setToken(token)
-                .setUuid(UUID.randomUUID().toString())
-                .setTempId(UUID.randomUUID().toString())
-                .setType("note_add");
+        if (StringUtils.isEmpty(task.getDescription())) return;
+        TaskNote taskNote = new TaskNote(savedTask.getId(), task.getDescription());
+        Command command = new Command(taskNote, getRandomUUID(), getRandomUUID(), "note_add");
+        Commands commands = new Commands(token, Collections.singletonList(command));
         getWebClient(SYNC_URL)
-                .body(BodyInserters.fromValue(command))
+                .body(BodyInserters.fromValue(commands))
                 .exchange()
                 .flatMap(x -> x.bodyToMono(String.class))
                 .subscribe();
 
+    }
+
+    private String getRandomUUID() {
+        return UUID.randomUUID().toString();
     }
 }
